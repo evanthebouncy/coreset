@@ -2,7 +2,7 @@ from evaluation_models.decision_tree import DTree
 from evaluation_models.logistic_regression import LRegr
 from evaluation_models.svm import Svmm
 
-from discovery_models.random_subset import RSub
+from discovery_models.logistic_active import LRegrActive
 
 from data.load_data import load_datas
   
@@ -12,7 +12,7 @@ if __name__ == "__main__":
   # the model makers
   model_makers = [DTree, LRegr, Svmm]
   # the subset selection
-  r_sub = RSub()
+  r_sub = LRegrActive()
 
   for sub_size in [100, 200, 400, 800, 1600, 3200, 6400, 12800]:
     # step 1 : get random subset

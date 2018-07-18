@@ -18,10 +18,19 @@ class LRegr:
     return np.sum(label_pred == test_label) / len(test_label)
 
 if __name__ == "__main__":
-  X = np.array( [[0, 0], [1, 1]] )
-  Y = np.array( [0, 1] )
+  # note the [0,0] input has ambiguous output 0 or 1
+  # but the [1,1] input has only output of 1
+  # as a result we'd expect the [0,0] entry to have high entropy, but the [1,1]
+  # entry to have less entropy
+  X = np.array( [[0, 0], [1, 1], [0, 0]] )
+  Y = np.array( [0, 1, 1] )
 
   lregr = LRegr()
   lregr.learn((X,Y))
   print ( lregr.evaluate((X,Y)) )
+
+  probs =  lregr.logisticRegr.predict_proba(X)
+  print (probs)
+  entrops = np.sum( -probs * np.log(probs), axis=1)
+  print (entrops)
 
