@@ -8,7 +8,7 @@ class LRegr:
 
   def learn(self, train_corpus):
     train_data, train_label = train_corpus
-    logisticRegr = LogisticRegression()
+    logisticRegr = LogisticRegression(solver='sag')
     logisticRegr.fit(train_data, train_label)
     self.logisticRegr = logisticRegr
 
