@@ -1,6 +1,7 @@
 from evaluation_models.decision_tree import DTree
 from evaluation_models.logistic_regression import LRegr
 from evaluation_models.svm import Svmm
+from evaluation_models.conv_nn import Cnet
 
 from discovery_models.logistic_active import LRegrActive
 
@@ -10,7 +11,8 @@ if __name__ == "__main__":
   # load the data
   tr_img, tr_lab, t_img, t_lab = load_datas("./data/")
   # the model makers
-  model_makers = [DTree, LRegr, Svmm]
+  # model_makers = [DTree, LRegr, Svmm]
+  model_makers = [Cnet]
   # the subset selection
   r_sub = LRegrActive("min_prob")
 
