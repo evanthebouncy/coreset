@@ -33,7 +33,7 @@ class LRegrActive:
     probs = lregr.predict_proba(X)
     scores = self.solicit_criteria(probs, y)
     # select the top K entries index and return the entries there
-    ind = np.argpartition(scores, K)[K:]
+    ind = np.argpartition(scores, K)[:K]
     return X[ind], y[ind]
 
   # make sure the initial subset cover all the classes
@@ -56,6 +56,7 @@ class LRegrActive:
       more_X, more_y = self.solicit(lregr, (X, X_lab), K // 10)
       X_sub = np.concatenate((X_sub, more_X))
       X_lab_sub = np.concatenate((X_lab_sub, more_y))
-
+  
+    print ("final size ", len(X_lab_sub))
     return X_sub, X_lab_sub
 

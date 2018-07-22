@@ -3,7 +3,7 @@ from evaluation_models.logistic_regression import LRegr
 from evaluation_models.svm import Svmm
 from evaluation_models.conv_nn import Cnet_Maker
 
-from discovery_models.random_subset import RSub
+from discovery_models.logistic_active import LRegrActive
 
 from data.load_data import load_datas
   
@@ -21,10 +21,11 @@ if __name__ == "__main__":
   cnet_maker = Cnet_Maker(*cnet_params[data_name])
 
   # the model makers
-  # model_makers = [DTree, LRegr, Svmm]
+  # model_makers = [DTree, LRegr, Svmm, cnet_maker]
   model_makers = [cnet_maker]
+
   # the subset selection
-  r_sub = RSub()
+  r_sub = cnet_maker()
 
   for sub_size in [100, 200, 400, 800, 1600, 3200, 6400, 12800]:
     # step 1 : get random subset
@@ -32,6 +33,7 @@ if __name__ == "__main__":
     # step 2 : make models and train them
     eval_models = [mm() for mm in model_makers]
     for mm in eval_models:
+      print ("fitting model ", mm.name)
       mm.learn((tr_img_sub, tr_lab_sub))
     # step 3 : collect scores
     scores = [(mm.name, mm.evaluate((t_img, t_lab)))\
