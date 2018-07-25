@@ -43,17 +43,20 @@ class Cnet():
     self.name = "Cnet"
     self.n_channel, self.w_img = n_channel, w_img
 
+  def torchify(self, X):
+    return to_torch(X, "float").view(-1, self.n_channel, self.w_img, self.w_img)
+
   def learn(self, train_corpus):
     cnn = CNN(self.n_channel, self.w_img).cuda()
     # cnn = CNN().cuda()
     X, y = train_corpus
-    for i in range(len(y) // 40 * 10):
+    for i in range(len(y) // 40 * 100):
       # load in the datas
       indices = sorted( random.sample(range(len(X)), 40) )
       X_sub = np.array([X[i] for i in indices])
       y_sub = np.array([y[i] for i in indices])
       # convert to proper torch forms
-      X_sub = to_torch(X_sub, "float").view(-1, self.n_channel, self.w_img, self.w_img)
+      X_sub = self.torchify(X_sub)
       y_sub = to_torch(y_sub, "int")
 
       # optimize 
@@ -64,14 +67,55 @@ class Cnet():
       cnn.opt.step()
 
     self.cnn = cnn
+    return cnn
 
   def evaluate(self, test_corpus):
     test_X, test_y = test_corpus
     # convert to proper torch forms
-    test_X = to_torch(test_X, "float").view(-1, self.n_channel, self.w_img, self.w_img)
+    test_X = self.torchify(test_X)
     output = self.cnn(test_X)
     y_pred = np.argmax( output.data.cpu().numpy(), axis=1 )
     return np.sum(y_pred == test_y) / len(test_y)
+
+
+  # ===================== SUBSET SELECTION ======================
+
+  # takes in a logistic regression model and a corpus
+  # return the top-K most high-entropy items
+  def solicit(self, trained_model, corpus, K):
+    X, y = corpus
+    X_torch = self.torchify(X)
+    # compute probability and entropy of the input X
+    output = trained_model(X_torch)
+    probs  = output.data.cpu().numpy()
+    scores = probs[range(len(y)), y]
+    # select the top K entries index and return the entries there
+    ind = np.argpartition(scores, K)[:K]
+    return X[ind], y[ind]
+
+  # make sure the initial subset cover all the classes
+  def initial_subset(self, X, y, kk):
+    indices = sorted( random.sample(range(len(X)), kk) )
+    X_sub = np.array([X[i] for i in indices])
+    y_sub = np.array([y[i] for i in indices])
+    # check we have 1 data for every class, if not try again with bigger subset
+    for yy in y:
+      if yy not in y_sub:
+        return self.initial_subset(X, y, kk+1)
+    return X_sub, y_sub
+
+  def get_subset(self, X, X_lab, K):
+    # first select 1 / 10 at random
+    X_sub, X_lab_sub = self.initial_subset(X, X_lab, K // 10)
+
+    while len(X_lab_sub) < K:
+      trained_model = self.learn((X_sub, X_lab_sub))
+      more_X, more_y = self.solicit(trained_model, (X, X_lab), K // 10)
+      X_sub = np.concatenate((X_sub, more_X))
+      X_lab_sub = np.concatenate((X_lab_sub, more_y))
+  
+    print ("final size ", len(X_lab_sub))
+    return X_sub, X_lab_sub
 
 def Cnet_Maker(n_channel, w_img):
   def call():

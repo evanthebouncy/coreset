@@ -2,7 +2,7 @@ import random
 
 class RSub:
   def __init__(self):
-    pass
+    self.name = "Rand Subset"
 
   def get_subset(self, X, X_lab, K):
     indices = sorted( random.sample(range(len(X)), K) )

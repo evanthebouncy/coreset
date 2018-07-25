@@ -1,15 +1,14 @@
-from evaluation_models.decision_tree import DTree
-from evaluation_models.logistic_regression import LRegr
-from evaluation_models.svm import Svmm
-from evaluation_models.conv_nn import Cnet_Maker
+from models.decision_tree import DTree
+from models.logistic_regression import LRegr
+from models.svm import Svmm
+from models.conv_nn import Cnet_Maker
+from discovery_models.random_subset import RSub
 
-from discovery_models.logistic_active import LRegrActive
-
+import math
 from data.load_data import load_datas
   
 if __name__ == "__main__":
-  # data_name = "cifar-10"
-  data_name = "mnist"
+  data_name = "cifar-10"
   # load the data
   tr_img, tr_lab, t_img, t_lab = load_datas("./data/", data_name)
 
@@ -26,9 +25,13 @@ if __name__ == "__main__":
 
   # the subset selection
   r_sub = cnet_maker()
+  # r_sub = RSub()
 
-  for sub_size in [100, 200, 400, 800, 1600, 3200, 6400, 12800]:
+  print (" running subset selection on ", data_name, " with ", r_sub.name)
+
+  for sub_frac in [0.0001, 0.0005, 0.001, 0.01, 0.1, 0.3, 0.5]:
     # step 1 : get random subset
+    sub_size = math.floor(sub_frac * len(tr_img))
     tr_img_sub, tr_lab_sub = r_sub.get_subset(tr_img, tr_lab, sub_size)
     # step 2 : make models and train them
     eval_models = [mm() for mm in model_makers]
