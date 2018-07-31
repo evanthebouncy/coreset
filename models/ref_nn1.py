@@ -89,9 +89,10 @@ class RefNN(nn.Module):
     '''
     M = keys.size()[0]
     qry = qry.unsqueeze(0)
-    qry = qry.expand(M, -1, -1)
+    qry = qry.expand(M, -1, -1) # match the key dimension [M x batch x n_qry]
     W = torch.sum(qry * keys, dim=2) # [ M x batch ] 
     W = W  / W.norm(2, 0, keepdim=True) # [ M x batch ] normalized along axis 0
+    # W = F.softmax(F.tanh(W), dim=0)
     return W
 
   # takes in a qry, M keys and M values, produce a context based on the qry
@@ -137,6 +138,26 @@ class RefNN(nn.Module):
     ctx1, ctx2 = self.make_ctx(qry1, keys, vals), self.make_ctx(qry2, keys, vals)
     pred = self.make_pred(ctx1, ctx2)
     return pred
+
+  def get_ref_W(self, img, ref_imgs, ref_labs):
+    '''
+      img :      [ batch x channel x W x W ]
+      ref_imgs : [ M x batch x channel x W x W ] 
+      ref_labs : [ M x batch x n_lab ]
+    '''
+    img_lat = self.enc_img(img)
+    qry1, qry2 = self.gen_qrys(img_lat)
+
+    # list of M of [batch x chan x W x W]
+    ref_img_list = torch.unbind(ref_imgs)
+    # list of M of [batch x n_img_lat]
+    ref_img_lat_list = [self.enc_img(ref_img) for ref_img in ref_img_list]
+    ref_img_lats = torch.stack(ref_img_lat_list) # [ M x batch x n_img_latent ]
+    keys, vals = self.gen_kv(ref_img_lats, ref_labs)
+
+    W1, W2 = self.make_W(qry1, keys), self.make_W(qry2, keys)
+    return W1, W2
+
 
 def generate_ref_data(imgs, labs):
   # use the rsub for random subset for now
@@ -188,6 +209,12 @@ if __name__ == "__main__":
     ref_nn.opt.step()
     print (loss)
 
+    # print some diagnostics
+    if _ % 100 == 0:
+      W1, W2 = ref_nn.get_ref_W(img_batch, ref_imgs, ref_labs)
+      W1_batch0 = W1.data.cpu().numpy().transpose()[0]
+      W2_batch0 = W2.data.cpu().numpy().transpose()[0]
+      print (W1_batch0)
 
 
 
