@@ -31,11 +31,11 @@ class RefNN(nn.Module):
           (1, 28) : 320,
           (3, 32) : 500,
         }
-    self.conv_hidden = conv_hiddens[(n_channel, w_img)] 
-    # 1 input channel, 10 output channel, 5x5 sliding window
+    self.n_conv_hidden = conv_hiddens[(n_channel, w_img)] 
+    # 1 input channel, 10 output channel, 5x5 sliding window (don't change these LOL)
     self.conv1 = nn.Conv2d(n_channel, 10, 5)
     self.conv2 = nn.Conv2d(10, 20, 5)
-    self.fc1 = nn.Linear(self.conv_hidden, self.n_img_latent)
+    self.fc1 = nn.Linear(self.n_conv_hidden, self.n_img_latent)
 
     # =========== GENERATING 2 KEYS ============
     self.qry = nn.Linear(self.n_img_latent, self.n_img_latent)
@@ -51,22 +51,22 @@ class RefNN(nn.Module):
     self.pred = nn.Linear(self.n_val + self.n_val, n_labels)
     
     # ========== Optimization ============
-    self.opt = torch.optim.Adam(self.parameters(), lr=0.0002)
+    self.opt = torch.optim.Adam(self.parameters(), lr=0.01)
 
   # takes in an image and encode into n_img_latent
   def enc_img(self, img):
     x = img
     x = F.relu(F.max_pool2d(self.conv1(x), 2))
     x = F.relu(F.max_pool2d(self.conv2(x), 2))
-    x = x.view(-1, self.conv_hidden)
+    x = x.view(-1, self.n_conv_hidden)
     x = F.relu(self.fc1(x))
     return x
   
   # takes in n_img_latent and produce 2 keys of n_qry
   def gen_qrys(self, img_lat):
     x = F.relu(self.qry(img_lat))
-    qry1 = self.mk_qry1(x)
-    qry2 = self.mk_qry2(x)
+    qry1 = F.sigmoid(self.mk_qry1(x))
+    qry2 = F.sigmoid(self.mk_qry2(x))
     return qry1, qry2
 
   # takes in n_img_latent and a label and produce k-v pair of n_qry n_key
@@ -77,8 +77,8 @@ class RefNN(nn.Module):
     '''
     x = torch.cat((ref_img_lats, ref_labs), dim=2)
     x = F.relu(self.kv(x))
-    key = self.mk_key(x)
-    val = self.mk_val(x)
+    key = F.sigmoid(self.mk_key(x))
+    val = F.sigmoid(self.mk_val(x))
     return key, val
 
   # takes in a query, M keys, create weights
@@ -88,11 +88,15 @@ class RefNN(nn.Module):
       keys : [ M x batch x n_qry ]
     '''
     M = keys.size()[0]
-    qry = qry.unsqueeze(0)
+    qry = qry.unsqueeze(0) # [1 x batch x n_qry]
     qry = qry.expand(M, -1, -1) # match the key dimension [M x batch x n_qry]
     W = torch.sum(qry * keys, dim=2) # [ M x batch ] 
-    W = W  / W.norm(2, 0, keepdim=True) # [ M x batch ] normalized along axis 0
+    # if random.random() < 0.1:
+    #   print ("rare !?~")
+    #   print (W[:, 0])
+    # W = W  / W.norm(2, 0, keepdim=True) # [ M x batch ] normalized along axis 0
     # W = F.softmax(F.tanh(W), dim=0)
+    W = F.softmax(W, dim=0)
     return W
 
   # takes in a qry, M keys and M values, produce a context based on the qry
@@ -198,7 +202,7 @@ if __name__ == "__main__":
   # load the data
   tr_img, tr_lab, t_img, t_lab = load_datas("./data/", data_name)
 
-  for _ in range(1000):
+  for _ in range(10000):
     # generate training batch
     img_batch, ref_imgs, ref_labs, lab_batch = generate_ref_data(tr_img, tr_lab)
     # optimize weights
@@ -215,30 +219,4 @@ if __name__ == "__main__":
       W1_batch0 = W1.data.cpu().numpy().transpose()[0]
       W2_batch0 = W2.data.cpu().numpy().transpose()[0]
       print (W1_batch0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
