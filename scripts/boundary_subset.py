@@ -4,7 +4,6 @@ from models.svm import Svmm
 from models.conv_nn import Cnet_Maker
 from discovery_models.random_subset import RSub
 import numpy as np
-
 import math
 from data.load_data import load_datas
   
@@ -26,15 +25,21 @@ if __name__ == "__main__":
   model_makers = [cnet_maker]
 
   # the subset selection
-  # r_sub = cnet_maker()
-  r_sub = RSub()
+  r_sub = cnet_maker()
+  # r_sub = RSub()
 
   print (" running subset selection on ", data_name, " with ", r_sub.name)
+
+  subset_rank = r_sub.get_subset_rank(tr_img, tr_lab)
+  for ll in subset_rank[:100]:
+    print (ll[0], ll[2])
+  assert 0
 
   for sub_frac in np.linspace(0, 0.1, 100):
     # step 1 : get random subset
     sub_size = math.floor(sub_frac * len(tr_img))
-    tr_img_sub, tr_lab_sub = r_sub.get_subset(tr_img, tr_lab, sub_size)
+    sub_stuff = subset_rank[:sub_size]
+    tr_img_sub, tr_lab_sub = [x[1] for x in sub_stuff], [x[2] for x in sub_stuff] 
     # step 2 : make models and train them
     eval_models = [mm() for mm in model_makers]
     for mm in eval_models:

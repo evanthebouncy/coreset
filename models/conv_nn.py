@@ -117,6 +117,22 @@ class Cnet():
     print ("final size ", len(X_lab_sub))
     return X_sub, X_lab_sub
 
+  def get_subset_rank(self, X, y):
+    trained_model = self.learn((X, y))
+
+    X_torch = self.torchify(X)
+    # compute probability and entropy of the input X
+    output = trained_model(X_torch)
+    probs  = output.data.cpu().numpy()
+    y_pred = np.argmax(probs, axis=1)
+    correct = y == y_pred
+    scores = probs[range(len(y)), y]
+    score_data = list(zip(scores, X, y, correct))
+    score_data = filter(lambda x:x[3], score_data)
+    score_data = [x[:3] for x in score_data]
+    return sorted(score_data, key=lambda x:x[0])
+
+
 def Cnet_Maker(n_channel, w_img):
   def call():
     return Cnet(n_channel, w_img)
