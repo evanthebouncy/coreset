@@ -116,6 +116,7 @@ class AEnet():
     X_emb = self.embed(X)
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans = kmeans.fit(X_emb)
+
     cluster_labels = list(kmeans.predict(X_emb))
     from sklearn.metrics import pairwise_distances_argmin_min
     closest, _ = pairwise_distances_argmin_min(kmeans.cluster_centers_, X_emb)
@@ -124,7 +125,7 @@ class AEnet():
     # for kk, img in enumerate(X[:10]):
     #   img = np.reshape(img, (28,28))
     #   plt.imsave('drawings/cluster_{}_{}_sample_{}.png'.format(self.class_id, cluster_labels[kk], kk), img)
-    return [ (X[closest[i]], counts[i]) for i in range(n_clusters) ]
+    return [ (X[closest[i]], counts[i]) for i in range(n_clusters) ], kmeans.score(X_emb)
 
     
 

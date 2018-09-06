@@ -16,7 +16,7 @@ class RSub:
     X_sub, y_sub = [], []
     for lab in range(n_labels):
       # sub-sample a small set from 60k
-      sample_indexs = sorted( random.sample(range(len(X)), K * 10) )
+      sample_indexs = sorted( random.sample(range(len(X)), min(K * 10, len(X))) )
       y_sample = y[sample_indexs]
       lab_idxs = [idx for idx in range(len(y_sample)) if y_sample[idx] == lab]
       lab_idxs  = random.sample(lab_idxs, K // n_labels)

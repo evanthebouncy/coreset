@@ -50,6 +50,8 @@ class Cnet():
     cnn = CNN(self.n_channel, self.w_img).cuda()
     # cnn = CNN().cuda()
     X, y = train_corpus
+
+    losses = []
     for i in range(len(y) // 40 * 100):
       # load in the datas
       indices = sorted( random.sample(range(len(X)), 40) )
@@ -63,6 +65,10 @@ class Cnet():
       cnn.opt.zero_grad()
       output = cnn(X_sub)
       loss = F.nll_loss(output, y_sub)
+      losses.append( loss.data.cpu().numpy() )
+      # terminate if no improvement
+      if min(losses) < min(losses[-20:]):
+        break
       loss.backward()
       cnn.opt.step()
 

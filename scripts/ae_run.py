@@ -34,7 +34,8 @@ if __name__ == "__main__":
       "cifar-10" : (3, 32),
   }
   cnet_maker = Cnet_Maker(*cnet_params[data_name])
-  model_makers = [DTree, LRegr, Svmm, cnet_maker]
+  model_makers = [cnet_maker]
+  # model_makers = [DTree, LRegr, Svmm, cnet_maker]
 
   # the subset selection
   sub_makers = [ae_maker(class_id) for class_id in range(n_labels)]
@@ -51,12 +52,15 @@ if __name__ == "__main__":
     for i in range(10):
       sub_makers[i].load('saved_models/ae_model', i)
 
-  for n_clusters in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
+  for n_clusters in [1000]:
+  #for n_clusters in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
     # representative 
     tr_img_sub = []
     tr_lab_sub = []
+    cl_score = 0
     for i in range(n_labels):
-      clusters = sub_makers[i].give_clusters(splits[i], n_clusters)
+      clusters, cs = sub_makers[i].give_clusters(splits[i], n_clusters)
+      cl_score += cs
       for j, img_cnt in enumerate(clusters):
         img_, cnt = img_cnt
         img = np.reshape(img_, (28,28))
@@ -90,7 +94,7 @@ if __name__ == "__main__":
     r_scores = [(mm.name, mm.evaluate((t_img, t_lab)))\
                for mm in eval_models]
 
-    print (sub_size / len(tr_img), scores, r_scores)
+    print (sub_size / len(tr_img), cl_score, scores, r_scores)
 
 
 
