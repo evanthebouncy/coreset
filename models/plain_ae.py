@@ -104,13 +104,29 @@ class AEnet():
     X_tsne = TSNE(n_components=2).fit_transform(embedded_X)
     import matplotlib
     matplotlib.use("svg")
-    import matplotlib.pyplot as plt
     x = [x[0] for x in X_tsne]
     y = [x[1] for x in X_tsne]
     plt.scatter(x, y, alpha=0.5)
     plt.savefig('drawings/2d_tsne_'+str(self.class_id)+'.png')
     plt.clf()
     print (X_tsne)
+
+  def give_clusters(self, X, n_clusters):
+    from sklearn.cluster import KMeans
+    X_emb = self.embed(X)
+    kmeans = KMeans(n_clusters=n_clusters)
+    kmeans = kmeans.fit(X_emb)
+    cluster_labels = list(kmeans.predict(X_emb))
+    from sklearn.metrics import pairwise_distances_argmin_min
+    closest, _ = pairwise_distances_argmin_min(kmeans.cluster_centers_, X_emb)
+    counts = [cluster_labels.count(i) for i in range(n_clusters)]
+
+    # for kk, img in enumerate(X[:10]):
+    #   img = np.reshape(img, (28,28))
+    #   plt.imsave('drawings/cluster_{}_{}_sample_{}.png'.format(self.class_id, cluster_labels[kk], kk), img)
+    return [ (X[closest[i]], counts[i]) for i in range(n_clusters) ]
+
+    
 
 
 def AEnet_Maker(n_channel, w_img):
