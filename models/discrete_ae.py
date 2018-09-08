@@ -9,6 +9,7 @@ import random
 # for drawing
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+dtype = torch.cuda.FloatTensor
 
 def to_torch(x, dtype, req = False):
   tor_type = torch.cuda.LongTensor if dtype == "int" else torch.cuda.FloatTensor
@@ -16,7 +17,7 @@ def to_torch(x, dtype, req = False):
   return x
 
 class AE(nn.Module):
-  def __init__(self):
+  def __init__(self, n_clusters):
     super(AE, self).__init__()
     self.encoder = nn.Sequential(
       nn.Conv2d(1, 16, 3, stride=3, padding=1),  # b, 16, 10, 10
@@ -35,6 +36,9 @@ class AE(nn.Module):
       nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1),  # b, 1, 28, 28
       nn.Tanh()
     )
+    self.code_book = Variable(torch.rand(n_clusters, 8, 2, 2).type(dtype), 
+                              requires_grad=False)
+
     self.opt = torch.optim.Adam(self.parameters(), lr=0.0002)
 
   def forward(self, x):
@@ -55,16 +59,16 @@ class AEnet():
   def save(self, loc):
     torch.save(self.ae.state_dict(), loc+"_"+str(self.class_id)+".mdl")
 
-  def load(self, loc, class_id):
-    ae = AE().cuda()
+  def load(self, loc, class_id, n_clusters):
+    ae = AE(n_clusters).cuda()
     ae.load_state_dict(torch.load(loc+"_"+str(class_id)+".mdl"))
     self.ae = ae
 
   def torchify(self, X):
     return to_torch(X, "float").view(-1, self.n_channel, self.w_img, self.w_img)
 
-  def learn_ae(self, X):
-    ae = AE().cuda()
+  def learn_ae(self, X, n_clusters):
+    ae = AE(n_clusters).cuda()
     for i in range(len(X) * 20):
       # load in the datas
       indices = sorted( random.sample(range(len(X)), 40) )
@@ -74,16 +78,35 @@ class AEnet():
 
       # optimize 
       ae.opt.zero_grad()
+      
       output = ae(X_sub)
       loss_fun = nn.MSELoss()
-      loss = loss_fun(output, X_sub)
+      reconstruction_loss = loss_fun(output, X_sub)
+
+      enc_codes = ae.encoder(X_sub)
+      enc_codes_bloat = enc_codes.unsqueeze(1).expand(-1, n_clusters, -1, -1, -1)
+      # print (enc_codes_bloat.size())
+      code_book_bloat = ae.code_book.unsqueeze(0).expand(enc_codes.size()[0], -1, -1, -1, -1)
+      # print (code_book_bloat.size())
+      # all pair-wise square across all coordinates
+      enc_code_dists = ( (code_book_bloat - enc_codes_bloat) ** 2 ).view(-1, n_clusters, 8*2*2).sum(-1)
+      # print (enc_code_dists.size())
+      # get the min distance
+      min_dists, _argmin = enc_code_dists.min(-1)
+      # print (min_dists.size())
+      commitment_loss = 0.001 * torch.sum(min_dists)
+
+      # print (reconstruction_loss, commitment_loss)
+      # print (ae.code_book)
+      loss = reconstruction_loss + commitment_loss
+
       loss.backward()
       ae.opt.step()
 
       if i % 4000 == 0:
         print (X_sub.size())
         print (output.size())
-        print (loss)
+        print (reconstruction_loss, commitment_loss)
 
         X_sub_np = X_sub[0].data.cpu().view(28,28).numpy()
         output_np = output[0].data.cpu().view(28,28).numpy()
@@ -131,14 +154,8 @@ class AEnet():
     #   plt.imsave('drawings/cluster_{}_{}_sample_{}.png'.format(self.class_id, cluster_labels[kk], kk), img)
     return [ (X[closest[i]], counts[i]) for i in range(n_clusters) ], kmeans.score(X_emb)
 
-    
-
-
 def AEnet_Maker(n_channel, w_img):
   def call(class_id):
     return AEnet(n_channel, w_img, class_id)
   return call
-
-
-
 

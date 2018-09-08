@@ -2,15 +2,16 @@ from models.decision_tree import DTree
 from models.logistic_regression import LRegr
 from models.svm import Svmm
 from models.conv_nn import Cnet_Maker
-from models.plain_ae import AEnet_Maker
+from models.discrete_ae import AEnet_Maker
 from discovery_models.random_subset import RSub
 import numpy as np
 import math
 from data.load_data import load_datas
 import matplotlib.pyplot as plt
 
-TRAIN = False
+TRAIN = True
 n_labels = 10
+n_clusters = 100
   
 if __name__ == "__main__":
   data_name = "mnist"
@@ -43,17 +44,16 @@ if __name__ == "__main__":
   # train
   if TRAIN:
     print ("GOGOOGO")
-    for i in range(10):
-      sub_makers[i].learn_ae(splits[i])
+    for i in range(n_labels):
+      sub_makers[i].learn_ae(splits[i], n_clusters)
     for sub_maker in sub_makers:
-      sub_maker.save('saved_models/ae_model')
+      sub_maker.save('saved_models/discrete_ae_model')
   # don't train
   else:
-    for i in range(10):
-      sub_makers[i].load('saved_models/ae_model', i)
+    for i in range(n_labels):
+      sub_makers[i].load('saved_models/discrete_ae_model', i, n_clusters)
 
   for n_clusters in [10]:
-  #for n_clusters in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
     # representative 
     tr_img_sub = []
     tr_lab_sub = []
