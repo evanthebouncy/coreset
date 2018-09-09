@@ -118,8 +118,6 @@ class AEnet():
     kmeans = KMeans(n_clusters=n_clusters)
     kmeans = kmeans.fit(X_emb)
 
-    from sklearn.cluster import spectral_clustering
-    
 
     cluster_labels = list(kmeans.predict(X_emb))
     from sklearn.metrics import pairwise_distances_argmin_min

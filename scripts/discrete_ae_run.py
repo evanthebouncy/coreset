@@ -9,7 +9,7 @@ import math
 from data.load_data import load_datas
 import matplotlib.pyplot as plt
 
-TRAIN = True
+TRAIN = False
 n_labels = 10
 n_clusters = 100
   
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     for i in range(n_labels):
       sub_makers[i].load('saved_models/discrete_ae_model', i, n_clusters)
 
-  for n_clusters in [10]:
+  for n_clusters in [n_clusters]:
     # representative 
     tr_img_sub = []
     tr_lab_sub = []

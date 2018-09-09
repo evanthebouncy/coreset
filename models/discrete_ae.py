@@ -36,8 +36,7 @@ class AE(nn.Module):
       nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1),  # b, 1, 28, 28
       nn.Tanh()
     )
-    self.code_book = Variable(torch.rand(n_clusters, 8, 2, 2).type(dtype), 
-                              requires_grad=False)
+    self.code_book = nn.Parameter(torch.rand(n_clusters, 8, 2, 2).type(dtype))
 
     self.opt = torch.optim.Adam(self.parameters(), lr=0.0002)
 
@@ -79,16 +78,18 @@ class AEnet():
       # optimize 
       ae.opt.zero_grad()
       
+      # ------------ reconstruction loss ---------------
       output = ae(X_sub)
       loss_fun = nn.MSELoss()
       reconstruction_loss = loss_fun(output, X_sub)
 
+      # ------------- commitment loss ------------
       enc_codes = ae.encoder(X_sub)
+      # bloat up both encoded and the code_book to create all-pairs of informations
       enc_codes_bloat = enc_codes.unsqueeze(1).expand(-1, n_clusters, -1, -1, -1)
-      # print (enc_codes_bloat.size())
+      # detach the code gradient for this one
       code_book_bloat = ae.code_book.unsqueeze(0).expand(enc_codes.size()[0], -1, -1, -1, -1)
-      # print (code_book_bloat.size())
-      # all pair-wise square across all coordinates
+      # all pair-wise square dist across all coordinates
       enc_code_dists = ( (code_book_bloat - enc_codes_bloat) ** 2 ).view(-1, n_clusters, 8*2*2).sum(-1)
       # print (enc_code_dists.size())
       # get the min distance
@@ -104,8 +105,6 @@ class AEnet():
       ae.opt.step()
 
       if i % 4000 == 0:
-        print (X_sub.size())
-        print (output.size())
         print (reconstruction_loss, commitment_loss)
 
         X_sub_np = X_sub[0].data.cpu().view(28,28).numpy()
@@ -136,17 +135,19 @@ class AEnet():
 
   def give_clusters(self, X, n_clusters):
     X_emb = self.embed(X)
+    code_book = self.ae.code_book.view(-1, 8*2*2).data.cpu().numpy()
 
-    from sklearn.cluster import KMeans
-    kmeans = KMeans(n_clusters=n_clusters)
-    kmeans = kmeans.fit(X_emb)
-
-    from sklearn.cluster import spectral_clustering
-    
-
-    cluster_labels = list(kmeans.predict(X_emb))
     from sklearn.metrics import pairwise_distances_argmin_min
-    closest, _ = pairwise_distances_argmin_min(kmeans.cluster_centers_, X_emb)
+    # closest, _ = pairwise_distances_argmin_min(code_book, X_emb)
+    closest, _ = pairwise_distances_argmin_min(X_emb, code_book)
+    print (len(closest))
+    print (closest[:10])
+    print (X_emb[:10])
+    print ("hm")
+    print (code_book[18])
+    print (code_book[90])
+    print (code_book[85])
+    assert 0, "stuf"
     counts = [cluster_labels.count(i) for i in range(n_clusters)]
 
     # for kk, img in enumerate(X[:10]):
