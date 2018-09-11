@@ -53,6 +53,13 @@ if __name__ == "__main__":
     for i in range(n_labels):
       sub_makers[i].load('saved_models/discrete_ae_model', i, n_clusters)
 
+
+  # for i in range(n_labels):
+  #   X_emb = sub_makers[i].embed(splits[i])
+  #   sub_makers[i].tsne(X_emb)
+
+  # assert 0, "hm"
+
   for n_clusters in [n_clusters]:
     # representative 
     tr_img_sub = []

@@ -52,7 +52,7 @@ class Cnet():
     X, y = train_corpus
 
     losses = []
-    for i in range(len(y) // 40 * 100):
+    while True:
       # load in the datas
       indices = sorted( random.sample(range(len(X)), 40) )
       X_sub = np.array([X[i] for i in indices])
@@ -67,7 +67,7 @@ class Cnet():
       loss = F.nll_loss(output, y_sub)
       losses.append( loss.data.cpu().numpy() )
       # terminate if no improvement
-      if min(losses) < min(losses[-20:]):
+      if loss < 1e-4 or min(losses) < min(losses[-1000:]):
         break
       loss.backward()
       cnn.opt.step()

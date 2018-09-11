@@ -20,6 +20,7 @@ class RSub:
       y_sample = y[sample_indexs]
       lab_idxs = [idx for idx in range(len(y_sample)) if y_sample[idx] == lab]
       lab_idxs  = random.sample(lab_idxs, K // n_labels)
+      assert (len(lab_idxs) == len(set(lab_idxs)))
       X_sub_lab = [X[i] for i in lab_idxs]
       y_sub_lab = [y[i] for i in lab_idxs]
       X_sub.extend(X_sub_lab)

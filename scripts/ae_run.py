@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 TRAIN = False
 n_labels = 10
+n_clusters = 1000
   
 if __name__ == "__main__":
   data_name = "mnist"
@@ -52,8 +53,6 @@ if __name__ == "__main__":
     for i in range(10):
       sub_makers[i].load('saved_models/ae_model', i)
 
-  for n_clusters in [10]:
-  #for n_clusters in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
     # representative 
     tr_img_sub = []
     tr_lab_sub = []
@@ -77,7 +76,6 @@ if __name__ == "__main__":
       mm.learn((tr_img_sub, tr_lab_sub))
     scores = [(mm.name, mm.evaluate((t_img, t_lab)))\
                for mm in eval_models]
-
     # random
     sub_size = n_clusters * n_labels
     r_sub = RSub()
@@ -94,6 +92,7 @@ if __name__ == "__main__":
     r_scores = [(mm.name, mm.evaluate((t_img, t_lab)))\
                for mm in eval_models]
 
+    # print (sub_size / len(tr_img), r_scores)
     print (sub_size / len(tr_img), cl_score, scores, r_scores)
 
 

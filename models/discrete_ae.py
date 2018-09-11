@@ -68,6 +68,14 @@ class AEnet():
 
   def learn_ae(self, X, n_clusters):
     ae = AE(n_clusters).cuda()
+
+    # for the first round straight up set the code-book to the first n_cluster embedding for start
+    indices = sorted( random.sample(range(len(X)), n_clusters) )
+    X_sub = np.array([X[i] for i in indices])
+    X_sub = self.torchify(X_sub)
+    enc_codes = ae.encoder(X_sub)
+    ae.code_book.data = enc_codes
+
     for i in range(len(X) * 20):
       # load in the datas
       indices = sorted( random.sample(range(len(X)), 40) )
@@ -135,25 +143,53 @@ class AEnet():
 
   def give_clusters(self, X, n_clusters):
     X_emb = self.embed(X)
-    code_book = self.ae.code_book.view(-1, 8*2*2).data.cpu().numpy()
 
+    from sklearn.cluster import KMeans
+    centers = self.ae.code_book.data.view(-1, 8*2*2).cpu().numpy()
+    kmeans = KMeans(n_clusters=n_clusters, init=centers)
+    kmeans = kmeans.fit(X_emb)
+
+
+    cluster_labels = list(kmeans.predict(X_emb))
+    # print (cluster_labels[:100])
     from sklearn.metrics import pairwise_distances_argmin_min
-    # closest, _ = pairwise_distances_argmin_min(code_book, X_emb)
-    closest, _ = pairwise_distances_argmin_min(X_emb, code_book)
-    print (len(closest))
-    print (closest[:10])
-    print (X_emb[:10])
-    print ("hm")
-    print (code_book[18])
-    print (code_book[90])
-    print (code_book[85])
-    assert 0, "stuf"
+    closest, _ = pairwise_distances_argmin_min(kmeans.cluster_centers_, X_emb)
     counts = [cluster_labels.count(i) for i in range(n_clusters)]
 
     # for kk, img in enumerate(X[:10]):
     #   img = np.reshape(img, (28,28))
     #   plt.imsave('drawings/cluster_{}_{}_sample_{}.png'.format(self.class_id, cluster_labels[kk], kk), img)
     return [ (X[closest[i]], counts[i]) for i in range(n_clusters) ], kmeans.score(X_emb)
+
+
+  # def give_clusters(self, X, n_clusters):
+  #   X_emb = self.embed(X)
+  #   code_book = self.ae.code_book.view(-1, 8*2*2).data.cpu().numpy()
+
+  #   from sklearn.metrics import pairwise_distances_argmin_min
+  #   # closest, _ = pairwise_distances_argmin_min(code_book, X_emb)
+  #   closest, _ = pairwise_distances_argmin_min(X_emb, code_book)
+  #   # print (len(closest))
+  #   # print (closest[:100])
+  #   closest = list(closest)
+  #   counts = dict( [(x, closest.count(x)) for x in set(closest)] )
+
+  #   closest_repr, _ = pairwise_distances_argmin_min(code_book, X_emb)
+
+  #   print (closest_repr)
+  #   assert 0, "Asdf"
+  #   # print (counts)
+  #   # print (X_emb[:10])
+  #   # print ("hm")
+  #   # print (code_book[18])
+  #   # print (code_book[90])
+  #   # print (code_book[85])
+  #   # assert 0, "stuf"
+  #   # for kk, img in enumerate(X[:10]):
+  #   #   img = np.reshape(img, (28,28))
+  #   #   plt.imsave('drawings/cluster_{}_{}_sample_{}.png'.format(self.class_id, cluster_labels[kk], kk), img)
+
+  #   return [ (X[closest_repr[i]], counts[99 ]) for i in range(n_clusters) ], 0
 
 def AEnet_Maker(n_channel, w_img):
   def call(class_id):
