@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 TRAIN = False
 n_labels = 10
-n_clusters = 1000
+n_clusters = 10
   
 if __name__ == "__main__":
   data_name = "mnist"

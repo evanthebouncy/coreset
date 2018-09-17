@@ -47,17 +47,16 @@ class AE(nn.Module):
 
 class AEnet():
   # takes in channel variable n and width of image
-  def __init__(self, n_channel, w_img, class_id):
+  def __init__(self, n_channel, w_img):
     self.name = "AEnet"
     self.n_channel, self.w_img = n_channel, w_img
-    self.class_id = class_id
 
   def save(self, loc):
-    torch.save(self.ae.state_dict(), loc+"_"+str(self.class_id)+".mdl")
+    torch.save(self.ae.state_dict(), loc+".mdl")
 
-  def load(self, loc, class_id):
+  def load(self, loc):
     ae = AE().cuda()
-    ae.load_state_dict(torch.load(loc+"_"+str(class_id)+".mdl"))
+    ae.load_state_dict(torch.load(loc+".mdl"))
     self.ae = ae
 
   def torchify(self, X):
@@ -99,17 +98,73 @@ class AEnet():
     encoded = self.ae.encoder(X).view(-1, 8*2*2)
     return encoded.data.cpu().numpy()
 
-  def tsne(self, embedded_X):
+  def tsne(self, embedded_X, labels=None):
+    cl_colors = np.linspace(0, 1, len(labels)) if (labels is not None) else ['blue']
     from sklearn.manifold import TSNE
     X_tsne = TSNE(n_components=2).fit_transform(embedded_X)
     import matplotlib
-    matplotlib.use("svg")
+    # matplotlib.use("svg")
     x = [x[0] for x in X_tsne]
     y = [x[1] for x in X_tsne]
-    plt.scatter(x, y, alpha=0.5)
-    plt.savefig('drawings/2d_tsne_'+str(self.class_id)+'.png')
+    colors = [cl_colors[lab] for lab in labels] if (labels is not None) else 'blue'
+    plt.scatter(x, y, c=colors, alpha=0.5)
+    plt.savefig('drawings/2d_tsne_ae_'+'.png')
     plt.clf()
-    print (X_tsne)
+    return X_tsne
+
+  # all radius are same, i.e. we only take minimum distance here
+  # cluster prior is uniform
+  # simple greedy strategy of max cover (with label in mind)
+  def cluster_greedy(self, X, Y, n_clusters):
+    n_data = len(X)
+    # compute the cluster loss for a set of cluster/label against X/Y
+    def cl_loss(clusters, cluster_labels, X, Y):
+      k_clusters = len(clusters)
+      if k_clusters == 0:
+        return np.inf
+      else:
+        # clusters of shape [n_cluster, emb-dimension]
+        # X of shape [n_data, emb-dimension]
+        clusters = to_torch(clusters, "float").unsqueeze(0).expand(n_data, -1, -1)
+        cluster_labels = to_torch(cluster_labels, "int")
+        X = to_torch(X, "float").unsqueeze(1).expand(-1, k_clusters, -1)
+        Y = to_torch(Y, "int")
+
+        # shape of [n_data, n_clusters]
+        # pair_wise_dists = ( (clusters - X) ** 2 ).sum(-1)
+        pair_wise_dists =  torch.exp(-1.0 / (1.0 + torch.abs(clusters - X).sum(-1)))
+        # print (pair_wise_dists)
+        # shape of [n_data,] as min_dists to cluster, and [n_data,] as argmin
+        min_dists, argmin = pair_wise_dists.min(-1)
+        # [n_data, n_cluster]
+        cluster_label_bloat = cluster_labels.unsqueeze(0).expand(n_data, -1)
+        label_pred = cluster_label_bloat.gather(1, argmin.view(-1, 1)).view(-1)
+        mistakes = label_pred != Y
+        return torch.sum(mistakes).data.cpu().numpy()
+
+    def greedy_1step(prev_clusters, prev_labels):
+      best_cls, best_labs, best_val = None, None, np.inf
+      for i in range(n_data):
+        x, y = X[i], Y[i]
+        cand_clusters = list(prev_clusters) + [x]
+        cand_labels   = list(prev_labels) + [y]
+
+        cand_clusters, cand_labels = np.array(cand_clusters), np.array(cand_labels)
+        loss = cl_loss(cand_clusters, cand_labels, X, Y)
+        if loss < best_val:
+          best_cls, best_labs, best_val = cand_clusters, cand_labels, loss
+
+      return best_cls, best_labs, best_val
+
+    cls, labs, val = [], [], 999
+    for step in range(n_clusters):
+      cls, labs, val = greedy_1step(cls, labs)
+      print (val)
+    print (labs)
+    assert 0, "asdf"
+        
+
+    print( cl_loss([], X) )
 
   def give_clusters(self, X, n_clusters):
     X_emb = self.embed(X)
@@ -122,21 +177,28 @@ class AEnet():
     cluster_labels = list(kmeans.predict(X_emb))
     from sklearn.metrics import pairwise_distances_argmin_min
     closest, _ = pairwise_distances_argmin_min(kmeans.cluster_centers_, X_emb)
-    counts = [len(X) // n_clusters for i in range(n_clusters)]
-    #print ("warning count is uniform right now")
-    #counts = [cluster_labels.count(i) for i in range(n_clusters)]
+    counts = [cluster_labels.count(i) for i in range(n_clusters)]
 
     # for kk, img in enumerate(X[:10]):
     #   img = np.reshape(img, (28,28))
     #   plt.imsave('drawings/cluster_{}_{}_sample_{}.png'.format(self.class_id, cluster_labels[kk], kk), img)
     return [ (X[closest[i]], counts[i]) for i in range(n_clusters) ], kmeans.score(X_emb)
 
+  def make_knn(self, X, Y):
+    X_emb = self.embed(X)
+    from sklearn import neighbors
+    clf = neighbors.KNeighborsClassifier(1)
+    knn_cl = clf.fit(X_emb, Y)
+    def classify(X_new):
+      X_new_emb = self.embed(X_new)
+      return knn_cl.predict(X_new_emb)
+    return classify
     
 
 
 def AEnet_Maker(n_channel, w_img):
-  def call(class_id):
-    return AEnet(n_channel, w_img, class_id)
+  def call():
+    return AEnet(n_channel, w_img)
   return call
 
 

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 dtype = torch.cuda.FloatTensor
 
-n_points = 100
+n_points = 10000
 n_r_subset = 20
 points = Variable(torch.rand(n_points, 2).type(dtype), requires_grad=True)
 
@@ -16,7 +16,7 @@ weights = torch.tensor([1.0 for i in range(n_points)], dtype=torch.float)
 
 info = 10
 
-for i in range(10000):
+for i in range(1000000):
   # print (points)
 
   r_idx = torch.multinomial(weights, n_r_subset)
@@ -28,7 +28,8 @@ for i in range(10000):
   pair_wise_dist = ( (row_mat - col_mat) **2 ).sum(-1)
   for idxx in range(n_r_subset):
     pair_wise_dist[idxx, idxx] = 999.0
-  min_dists, _argmin = pair_wise_dist.min(-1)
+  # min_dists, _argmin = pair_wise_dist.min(-1)
+  min_dists, _argmin = pair_wise_dist, None
   attraction_loss = torch.sum(min_dists)
   if i % info == 0:
     print (attraction_loss)

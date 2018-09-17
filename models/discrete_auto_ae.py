@@ -9,6 +9,7 @@ import random
 # for drawing
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+dtype = torch.cuda.FloatTensor
 
 def to_torch(x, dtype, req = False):
   tor_type = torch.cuda.LongTensor if dtype == "int" else torch.cuda.FloatTensor
@@ -35,7 +36,8 @@ class AE(nn.Module):
       nn.ConvTranspose2d(8, 1, 2, stride=2, padding=1),  # b, 1, 28, 28
       nn.Tanh()
     )
-    self.opt = torch.optim.Adam(self.parameters(), lr=0.0002)
+
+    self.opt = torch.optim.Adam(self.parameters(), lr=0.001)
 
   def forward(self, x):
     x = self.encoder(x)
@@ -65,25 +67,47 @@ class AEnet():
 
   def learn_ae(self, X):
     ae = AE().cuda()
-    for i in range(len(X) * 20):
+
+    for i in range(len(X) * 40):
       # load in the datas
-      indices = sorted( random.sample(range(len(X)), 40) )
+      b_size = 40
+      indices = sorted( random.sample(range(len(X)), b_size) )
       X_sub = np.array([X[i] for i in indices])
       # convert to proper torch forms
       X_sub = self.torchify(X_sub)
 
       # optimize 
       ae.opt.zero_grad()
+      
+      # ------------ reconstruction loss ---------------
       output = ae(X_sub)
       loss_fun = nn.MSELoss()
-      loss = loss_fun(output, X_sub)
+      reconstruction_loss = loss_fun(output, X_sub)
+
+      # ------------- commitment loss ------------
+      enc_codes = ae.encoder(X_sub)
+      # bloat up both encoded and the code_book to create all-pairs of informations
+      enc_codes_bloat = enc_codes.unsqueeze(1).expand(-1, b_size, -1, -1, -1)
+      # detach the code gradient for this one
+      enc_codes_bloat_T = enc_codes.unsqueeze(0).expand(b_size, -1, -1, -1, -1)
+      # all pair-wise square dist across all coordinates
+      enc_code_dists = ( (enc_codes_bloat_T - enc_codes_bloat) ** 2 ).view(b_size, b_size, 8*2*2).sum(-1)
+
+      max_dists = torch.clamp(enc_code_dists.max(-1)[0], 0.0, 1.0 / 1000)
+
+      for bb_id in range(b_size):
+        enc_code_dists[bb_id][bb_id] = 9999.0
+      min_dists = torch.clamp(enc_code_dists.min(-1)[0], 0.0, 1.0 / 1000)
+
+      commitment_loss = torch.sum(min_dists) - torch.sum(max_dists)
+
+      loss = reconstruction_loss + commitment_loss
+
       loss.backward()
       ae.opt.step()
 
-      if i % 4000 == 0:
-        print (X_sub.size())
-        print (output.size())
-        print (loss)
+      if i % len(X) == 0:
+        print (i // len(X), reconstruction_loss, commitment_loss)
 
         X_sub_np = X_sub[0].data.cpu().view(28,28).numpy()
         output_np = output[0].data.cpu().view(28,28).numpy()
@@ -120,25 +144,18 @@ class AEnet():
 
 
     cluster_labels = list(kmeans.predict(X_emb))
+    # print (cluster_labels[:100])
     from sklearn.metrics import pairwise_distances_argmin_min
     closest, _ = pairwise_distances_argmin_min(kmeans.cluster_centers_, X_emb)
-    counts = [len(X) // n_clusters for i in range(n_clusters)]
-    #print ("warning count is uniform right now")
-    #counts = [cluster_labels.count(i) for i in range(n_clusters)]
+    counts = [cluster_labels.count(i) for i in range(n_clusters)]
 
     # for kk, img in enumerate(X[:10]):
     #   img = np.reshape(img, (28,28))
     #   plt.imsave('drawings/cluster_{}_{}_sample_{}.png'.format(self.class_id, cluster_labels[kk], kk), img)
     return [ (X[closest[i]], counts[i]) for i in range(n_clusters) ], kmeans.score(X_emb)
 
-    
-
-
 def AEnet_Maker(n_channel, w_img):
   def call(class_id):
     return AEnet(n_channel, w_img, class_id)
   return call
-
-
-
 

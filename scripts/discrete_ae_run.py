@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 TRAIN = False
 n_labels = 10
+# this has to be 100 for now
 n_clusters = 100
   
 if __name__ == "__main__":
