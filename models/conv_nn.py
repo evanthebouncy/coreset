@@ -54,7 +54,8 @@ class Cnet():
     losses = []
     while True:
       # load in the datas
-      indices = sorted( random.sample(range(len(X)), 40) )
+      b_size = min(40, len(X) // 2)
+      indices = sorted( random.sample(range(len(X)), b_size) )
       X_sub = np.array([X[i] for i in indices])
       y_sub = np.array([y[i] for i in indices])
       # convert to proper torch forms

@@ -112,88 +112,109 @@ class AEnet():
     plt.clf()
     return X_tsne
 
-  # all radius are same, i.e. we only take minimum distance here
-  # cluster prior is uniform
-  # simple greedy strategy of max cover (with label in mind)
-  def cluster_greedy(self, X, Y, n_clusters):
-    n_data = len(X)
-    # compute the cluster loss for a set of cluster/label against X/Y
-    def cl_loss(clusters, cluster_labels, X, Y):
-      k_clusters = len(clusters)
-      if k_clusters == 0:
-        return np.inf
-      else:
-        # clusters of shape [n_cluster, emb-dimension]
-        # X of shape [n_data, emb-dimension]
-        clusters = to_torch(clusters, "float").unsqueeze(0).expand(n_data, -1, -1)
-        cluster_labels = to_torch(cluster_labels, "int")
-        X = to_torch(X, "float").unsqueeze(1).expand(-1, k_clusters, -1)
-        Y = to_torch(Y, "int")
-
-        # shape of [n_data, n_clusters]
-        # pair_wise_dists = ( (clusters - X) ** 2 ).sum(-1)
-        pair_wise_dists =  torch.exp(-1.0 / (1.0 + torch.abs(clusters - X).sum(-1)))
-        # print (pair_wise_dists)
-        # shape of [n_data,] as min_dists to cluster, and [n_data,] as argmin
-        min_dists, argmin = pair_wise_dists.min(-1)
-        # [n_data, n_cluster]
-        cluster_label_bloat = cluster_labels.unsqueeze(0).expand(n_data, -1)
-        label_pred = cluster_label_bloat.gather(1, argmin.view(-1, 1)).view(-1)
-        mistakes = label_pred != Y
-        return torch.sum(mistakes).data.cpu().numpy()
-
-    def greedy_1step(prev_clusters, prev_labels):
-      best_cls, best_labs, best_val = None, None, np.inf
-      for i in range(n_data):
-        x, y = X[i], Y[i]
-        cand_clusters = list(prev_clusters) + [x]
-        cand_labels   = list(prev_labels) + [y]
-
-        cand_clusters, cand_labels = np.array(cand_clusters), np.array(cand_labels)
-        loss = cl_loss(cand_clusters, cand_labels, X, Y)
-        if loss < best_val:
-          best_cls, best_labs, best_val = cand_clusters, cand_labels, loss
-
-      return best_cls, best_labs, best_val
-
-    cls, labs, val = [], [], 999
-    for step in range(n_clusters):
-      cls, labs, val = greedy_1step(cls, labs)
-      print (val)
-    print (labs)
-    assert 0, "asdf"
-        
-
-    print( cl_loss([], X) )
-
-  def give_clusters(self, X, n_clusters):
-    X_emb = self.embed(X)
-
-    from sklearn.cluster import KMeans
-    kmeans = KMeans(n_clusters=n_clusters)
-    kmeans = kmeans.fit(X_emb)
-
-
-    cluster_labels = list(kmeans.predict(X_emb))
-    from sklearn.metrics import pairwise_distances_argmin_min
-    closest, _ = pairwise_distances_argmin_min(kmeans.cluster_centers_, X_emb)
-    counts = [cluster_labels.count(i) for i in range(n_clusters)]
-
-    # for kk, img in enumerate(X[:10]):
-    #   img = np.reshape(img, (28,28))
-    #   plt.imsave('drawings/cluster_{}_{}_sample_{}.png'.format(self.class_id, cluster_labels[kk], kk), img)
-    return [ (X[closest[i]], counts[i]) for i in range(n_clusters) ], kmeans.score(X_emb)
-
-  def make_knn(self, X, Y):
-    X_emb = self.embed(X)
+  def make_knn(self, X, Y, embed=True):
+    X_emb = self.embed(X) if embed else X
     from sklearn import neighbors
-    clf = neighbors.KNeighborsClassifier(1)
+    # I HRD SOMEWHERE THAT USING k = LOG(len(DATA)) is good
+    clf = neighbors.KNeighborsClassifier(1+int(np.log(len(Y))), weights='distance')
     knn_cl = clf.fit(X_emb, Y)
     def classify(X_new):
-      X_new_emb = self.embed(X_new)
+      X_new_emb = self.embed(X_new) if embed else X_new
       return knn_cl.predict(X_new_emb)
     return classify
+
+  def sub_select1(self, n_samples, X, Y, embed=True):
+    steps = min(100, n_samples-2)
+    n_batch = max(n_samples // steps, 1)
+    # TODO: initialize with clusters
+    r_idxs = np.random.choice(np.arange(len(X)), n_batch, replace=False)
+    X_sub = X[r_idxs]
+    Y_sub = Y[r_idxs]
+    while len(Y_sub) < n_samples:
+      clf = self.make_knn(X_sub, Y_sub, embed)
+      pred = clf(X)
+      incorrect = (pred != Y)
+      X_remain = X[incorrect]
+      Y_remain = Y[incorrect]
+
+      print ("misclasified", len(X_remain) )
+
+      r_idxs = np.random.choice(np.arange(len(X_remain)), n_batch, replace=False)
+      X_add = X_remain[r_idxs]
+      Y_add = Y_remain[r_idxs]
+      X_sub = np.concatenate((X_sub, X_add))
+      Y_sub = np.concatenate((Y_sub, Y_add))
+
+    return X_sub, Y_sub
+
+  def sub_select2(self, n_samples, X, Y, embed=True, inc_size=10, search_width=10):
+    def loss(X_sub, Y_sub):
+      clf = self.make_knn(X_sub, Y_sub, embed)
+      pred = clf(X)
+      incorrect = (pred != Y)
+      X_remain = X[incorrect]
+      Y_remain = Y[incorrect]
+      return sum(incorrect), X_remain, Y_remain
+
+    # get a batch of new samples from remaining set
+    def make_sample(X_rem, Y_rem, inc_size):
+      r_idxs = np.random.choice(np.arange(len(X_rem)), inc_size, replace=False)
+      return X_rem[r_idxs], Y_rem[r_idxs]
+
+    def one_step(X_sub, Y_sub, inc_size, search_width):
+      samples = [make_sample(X, Y, inc_size) for _ in range(search_width)]
+      cand_sub = [(np.concatenate((X_sub, samp[0])), np.concatenate((Y_sub, samp[1]))) for samp in samples] if len(X_sub) > 0 else samples
+
+      loss_cand = [(loss(*cand)[0], cand) for cand in cand_sub]
+      best_score, best_cand = min(loss_cand, key = lambda t: t[0])
+      print (best_score)
+      return best_cand
+
+    X_sub, Y_sub = [], []
+    for iter_n in range(n_samples // inc_size):
+      print (iter_n)
+      X_sub, Y_sub = one_step(X_sub, Y_sub, inc_size, search_width) 
+
+    return X_sub, Y_sub
     
+  def sub_select3(self, n_samples, X, Y, embed=True, inc_size=10, search_width=10):
+    dec_size = inc_size // 2
+    def loss(X_sub, Y_sub):
+      clf = self.make_knn(X_sub, Y_sub, embed)
+      pred = clf(X)
+      incorrect = (pred != Y)
+      X_remain = X[incorrect]
+      Y_remain = Y[incorrect]
+      return sum(incorrect), X_remain, Y_remain
+
+    # get a batch of new samples from remaining set
+    def make_sample(X_rem, Y_rem, inc_size):
+      r_idxs = np.random.choice(np.arange(len(X_rem)), inc_size, replace=False)
+      return X_rem[r_idxs], Y_rem[r_idxs]
+
+    def one_step_add(X_sub, Y_sub):
+      samples = [make_sample(X, Y, inc_size) for _ in range(search_width)]
+      cand_sub = [(np.concatenate((X_sub, samp[0])), np.concatenate((Y_sub, samp[1]))) for samp in samples] if len(X_sub) > 0 else samples
+
+      loss_cand = [(loss(*cand)[0], cand) for cand in cand_sub]
+      best_score, best_cand = min(loss_cand, key = lambda t: t[0])
+      return best_score, best_cand
+
+    def one_step_sub(X_sub, Y_sub):
+      red_size = len(X_sub) - dec_size
+      cand_redux = [make_sample(X_sub, Y_sub, red_size) for _ in range(search_width)]
+
+      loss_cand = [(loss(*cand)[0], cand) for cand in cand_redux]
+      best_score, best_cand = min(loss_cand, key = lambda t: t[0])
+      return best_score, best_cand
+
+    X_sub, Y_sub = [], []
+    while len(X_sub) < n_samples:
+      add_score, (X_sub, Y_sub) = one_step_add(X_sub, Y_sub)
+      sub_score, (X_sub, Y_sub) = one_step_sub(X_sub, Y_sub) 
+      print (len(Y_sub), add_score, sub_score)
+
+    return X_sub, Y_sub
 
 
 def AEnet_Maker(n_channel, w_img):

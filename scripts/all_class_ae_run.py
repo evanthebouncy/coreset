@@ -11,7 +11,15 @@ import matplotlib.pyplot as plt
 
 TRAIN = False
 n_labels = 10
-n_clusters = 100
+n_samples = 100
+
+def evaluate_subset(t_img, t_lab, img_sub, lab_sub, model_makers):
+  eval_models = [mm() for mm in model_makers]
+  for mm in eval_models:
+    mm.learn((img_sub, lab_sub))
+  scores = [(mm.name, mm.evaluate((t_img, t_lab)))\
+             for mm in eval_models]
+  print (scores)
   
 if __name__ == "__main__":
   data_name = "mnist"
@@ -46,10 +54,14 @@ if __name__ == "__main__":
   else:
     sub_maker.load('saved_models/all_class_ae_model')
 
-    r_idxs = np.random.choice(np.arange(len(tr_img)), 60000, replace=False)
-    tr_img_sub = tr_img[r_idxs] 
-    tr_lab_sub = tr_lab[r_idxs]
-    clf = sub_maker.make_knn(tr_img_sub, tr_lab_sub)
+    r_idxs = np.random.choice(np.arange(len(tr_img)), n_samples, replace=False)
+    img_sub_r = tr_img[r_idxs] 
+    lab_sub_r = tr_lab[r_idxs]
+    evaluate_subset(t_img, t_lab, img_sub_r, lab_sub_r, model_makers)
 
-    print (np.sum(clf(t_img) == t_lab) / len(t_lab))
+    img_sub_p, lab_sub_p = sub_maker.sub_select3(n_samples, tr_img, tr_lab,
+        embed=False, inc_size = 2)
+    evaluate_subset(t_img, t_lab, img_sub_p, lab_sub_p, model_makers)
+
+
 
