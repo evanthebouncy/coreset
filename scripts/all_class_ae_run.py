@@ -59,8 +59,8 @@ if __name__ == "__main__":
     lab_sub_r = tr_lab[r_idxs]
     evaluate_subset(t_img, t_lab, img_sub_r, lab_sub_r, model_makers)
 
-    img_sub_p, lab_sub_p = sub_maker.sub_select3(n_samples, tr_img, tr_lab,
-        embed=False, inc_size = 2)
+    img_sub_p, lab_sub_p = sub_maker.sub_select2(n_samples, tr_img, tr_lab,
+        embed=True, inc_size = 1)
     evaluate_subset(t_img, t_lab, img_sub_p, lab_sub_p, model_makers)
 
 
