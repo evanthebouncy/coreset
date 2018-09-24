@@ -13,20 +13,20 @@ def to_torch(x, dtype, req = False):
   return x
 
 class CNN(nn.Module):
-  def __init__(self, n_channel, w_img):
+  def __init__(self, n_channel, w_img, n_label):
     super(CNN, self).__init__()
 
     n_hiddens = {
-          (1, 28) : 320,
+          (1, 28) : 20 * 6 * 6,
           (3, 32) : 500,
+          (1, 10) : 20,
         }
     self.n_hidden = n_hiddens[(n_channel, w_img)] 
-    # 1 input channel, 10 output channel, 5x5 sliding window
-    self.conv1 = nn.Conv2d(n_channel, 10, 5)
-    self.conv2 = nn.Conv2d(10, 20, 5)
+    self.conv1 = nn.Conv2d(n_channel, 10, 2)
+    self.conv2 = nn.Conv2d(10, 20, 2)
 
     self.fc1 = nn.Linear(self.n_hidden, 50)
-    self.fc2 = nn.Linear(50, 10)
+    self.fc2 = nn.Linear(50, n_label)
     self.opt = torch.optim.Adam(self.parameters(), lr=0.0002)
 
   def forward(self, x):
@@ -39,15 +39,16 @@ class CNN(nn.Module):
 
 class Cnet():
   # takes in channel variable n and width of image
-  def __init__(self, n_channel, w_img):
+  def __init__(self, n_channel, w_img, n_class):
     self.name = "Cnet"
     self.n_channel, self.w_img = n_channel, w_img
+    self.n_class = n_class
 
   def torchify(self, X):
     return to_torch(X, "float").view(-1, self.n_channel, self.w_img, self.w_img)
 
   def learn(self, train_corpus):
-    cnn = CNN(self.n_channel, self.w_img).cuda()
+    cnn = CNN(self.n_channel, self.w_img, self.n_class).cuda()
     # cnn = CNN().cuda()
     X, y = train_corpus
 
@@ -140,9 +141,9 @@ class Cnet():
     return sorted(score_data, key=lambda x:x[0])
 
 
-def Cnet_Maker(n_channel, w_img):
+def Cnet_Maker(n_channel, w_img, n_class):
   def call():
-    return Cnet(n_channel, w_img)
+    return Cnet(n_channel, w_img, n_class)
   return call
 
 
