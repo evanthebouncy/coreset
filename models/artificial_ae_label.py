@@ -100,7 +100,7 @@ class AEnet():
       reconstruct_loss = ae.xentropy_loss(X_sub, X_rec) * 0.1
       prediction_loss =  ae.xentropy_loss(Y_sub, Y_pred)
 
-      loss = reconstruct_loss # + prediction_loss
+      loss = reconstruct_loss + prediction_loss
 
       # optimize 
       ae.opt.zero_grad()
@@ -205,8 +205,8 @@ class AEnet():
       X_rem, Y_rem = get_rem(X_sub, Y_sub)
       samples = [make_sample(X_rem, Y_rem, inc_size) for _ in range(search_width)]
       cand_sub = [(np.concatenate((X_sub, samp[0])), np.concatenate((Y_sub, samp[1]))) for samp in samples] if len(X_sub) > 0 else samples
-      if len(X_sub) > 0:
-        cand_sub.append((X_sub, Y_sub))
+#       if len(X_sub) > 0:
+#         cand_sub.append((X_sub, Y_sub))
 
       loss_cand = [(loss(*cand), cand) for cand in cand_sub]
       best_score, best_cand = min(loss_cand, key = lambda t: t[0])
@@ -218,8 +218,99 @@ class AEnet():
       print (iter_n)
       X_sub, Y_sub = one_step(X_sub, Y_sub, inc_size, search_width) 
 
-    return X_sub, Y_sub
+    # return X_sub, Y_sub
 
+    # calculate the assignment to clusters
+    X_emb = self.embed(X)
+    X_sub_emb = self.embed(X_sub)
+    from sklearn.metrics import pairwise_distances_argmin_min
+    close_argmin, close_value = pairwise_distances_argmin_min(X_emb, X_sub_emb)
+    import collections
+    count = collections.Counter(close_argmin)
+
+    print(count)
+
+    X_sub_ret = []
+    Y_sub_ret = []
+
+    for i in range(len(X_sub)):
+      X_sub_ret = X_sub_ret + [X_sub[i]] * count[i]
+      Y_sub_ret = Y_sub_ret + [Y_sub[i]] * count[i]
+
+    return (np.array(X_sub_ret), np.array(Y_sub_ret)), (X_sub, Y_sub)
+
+
+  def sub_select5(self, n_samples, X, Y, embed=True, inc_size=10, search_width=10):
+    X_emb = self.embed(X)
+    
+    from sklearn.cluster import KMeans
+    kmeans = KMeans(n_clusters=n_samples)
+    kmeans = kmeans.fit(X_emb)
+    
+    cluster_labels = list(kmeans.predict(X_emb))
+    # print (cluster_labels[:100])
+    from sklearn.metrics import pairwise_distances_argmin_min
+    closest, _ = pairwise_distances_argmin_min(kmeans.cluster_centers_, X_emb)
+    counts = [cluster_labels.count(i) for i in range(n_samples)]
+    
+    # return [ (X[closest[i]], counts[i]) for i in range(n_samples) ], kmeans.score(X_emb)
+    X_sub = []
+    Y_sub = []
+    for i in range(n_samples):
+      X_sub.append(X[closest[i]])
+      Y_sub.append(Y[closest[i]])
+    return np.array(X_sub), np.array(Y_sub)
+  # return [ X[closest[i]] for i in range(n_samples) ]
+
+
+    return X_sub, Y_sub
+  
+
+
+  def sub_select6(self, n_samples, X, Y, embed=True, inc_size=10, search_width=10):
+    def loss(X_sub, Y_sub):
+      clf = self.make_knn(X_sub, Y_sub, embed)
+      return knn_loss(clf, X, Y)
+
+    # get a batch of new samples from remaining set
+    def make_sample(X_rem, Y_rem, inc_size):
+      r_idxs = np.random.choice(np.arange(len(X_rem)), inc_size, replace=False)
+      return X_rem[r_idxs], Y_rem[r_idxs]
+
+    def one_step(X_sub, Y_sub, inc_size, search_width):
+      samples = [make_sample(X, Y, inc_size) for _ in range(search_width)]
+      cand_sub = [(np.concatenate((X_sub, samp[0])), np.concatenate((Y_sub, samp[1]))) for samp in samples] if len(X_sub) > 0 else samples
+
+      loss_cand = [(loss(*cand), cand) for cand in cand_sub]
+      best_score, best_cand = min(loss_cand, key = lambda t: t[0])
+      print (best_score)
+      return best_cand
+
+    X_sub, Y_sub = [], []
+    for iter_n in range(n_samples // inc_size):
+      X_sub, Y_sub = one_step(X_sub, Y_sub, inc_size, search_width) 
+
+    # calculate the assignment to clusters
+    X_emb = self.embed(X)
+    X_sub_emb = self.embed(X_sub)
+    from sklearn.metrics import pairwise_distances_argmin_min
+    close_argmin, close_value = pairwise_distances_argmin_min(X_emb, X_sub_emb)
+    import collections
+    count = collections.Counter(close_argmin)
+
+    print(count)
+
+    X_sub_ret = []
+    Y_sub_ret = []
+
+    print (len(X_sub))
+    print (len(count.keys()))
+
+    for i in range(len(count.keys())):
+      X_sub_ret = X_sub_ret + [X_sub[i]] * count[i]
+      Y_sub_ret = Y_sub_ret + [Y_sub[i]] * count[i]
+
+    return (np.array(X_sub_ret), np.array(Y_sub_ret)), (X_sub, Y_sub)
 
 def AEnet_Maker():
   def call():

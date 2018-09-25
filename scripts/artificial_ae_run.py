@@ -9,7 +9,7 @@ import math
 from data.load_data import load_datas
 import matplotlib.pyplot as plt
 
-n_samples = 100
+n_samples = 500
 
 def evaluate_subset(t_img, t_lab, img_sub, lab_sub, model_makers):
   t_img, img_sub = np.reshape(t_img, (-1, 100)), np.reshape(img_sub, (-1, 100))
@@ -30,19 +30,20 @@ if __name__ == "__main__":
   # the model makers
   cnet_maker = Cnet_Maker(1,10,2)
   model_makers = [cnet_maker]
-
-  # quick tsne check
-  X_tsne, Y_tsne = X_tr[:200], Y_tr[:200]
-  ae_maker = AEnet_Maker()
-  tsne_maker = ae_maker()
-  tsne_maker.load('saved_models/artificial_ae_model')
-  X_tsne_emb = tsne_maker.embed(X_tsne)
-  tsne_maker.tsne(X_tsne_emb, Y_tsne)
-
   sub_maker = AEnet_Maker()()
   sub_maker.load('saved_models/artificial_ae_model')
 
+  # # quick tsne check
+  # X_tsne, Y_tsne = X_tr[:200], Y_tr[:200]
+  # ae_maker = AEnet_Maker()
+  # tsne_maker = ae_maker()
+  # tsne_maker.load('saved_models/artificial_ae_model')
+  # X_tsne_emb = tsne_maker.embed(X_tsne)
+  # tsne_maker.tsne(X_tsne_emb, Y_tsne)
+
+
   print ("n_samples ", n_samples)
+
   r_idxs = np.random.choice(np.arange(len(X_tr)), n_samples, replace=False)
   X_sub_r = X_tr[r_idxs] 
   Y_sub_r = Y_tr[r_idxs]
@@ -50,12 +51,17 @@ if __name__ == "__main__":
   print ("rsub knn loss ", knn_loss(knn_rsub, X,Y))
   evaluate_subset(X_t, Y_t, X_sub_r, Y_sub_r, model_makers)
 
-  X_sub_p, Y_sub_p = sub_maker.sub_select4(n_samples, X_tr, Y_tr,
-      embed=True, inc_size = n_samples // 10, search_width=10)
-  evaluate_subset(X_t, Y_t, X_sub_p, Y_sub_p, model_makers)
+  sub_weighted, sub_unif = sub_maker.sub_select4(n_samples, X_tr, Y_tr,
+      embed=True, inc_size = n_samples // 20, search_width=10)
+  # knn_psub = sub_maker.make_knn(X_sub_p, Y_sub_p, embed=True)
+  # print ("psub knn loss ", knn_loss(knn_psub, X,Y))
+  print ("with weighted subset")
+  evaluate_subset(X_t, Y_t, *sub_weighted, model_makers)
+  print ("with uniform subset")
+  evaluate_subset(X_t, Y_t, *sub_unif, model_makers)
 
-  X_sub_emb = sub_maker.embed(X_sub_p)
-  sub_maker.tsne(X_sub_emb, Y_sub_p, '_chosen')
+  X_sub_emb = sub_maker.embed(sub_unif[0])
+  sub_maker.tsne(X_sub_emb, sub_unif[1], '_chosen')
 
 
 
